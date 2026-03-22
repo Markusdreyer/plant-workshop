@@ -449,10 +449,9 @@ export default function DashboardShell({ initialPlants }) {
       <section className="platform-hero">
         <div className="platform-copy-block">
           <p className="eyebrow">Plant Platform</p>
-          <h1>One dashboard for every thirsty plant in the room.</h1>
+          <h1>One dashboard to rule them all 🪴</h1>
           <p className="platform-copy">
-            Register each plant once, use the UUID to connect, and let the cards fill in
-            as raw readings hit the API.
+            Create a plant, connect the UUID, and watch its card update as new moisture readings come in.
           </p>
         </div>
 
@@ -523,7 +522,7 @@ export default function DashboardShell({ initialPlants }) {
           </label>
 
           <p className="field-hint">
-            Keep the generated UUID or replace it with your own before creating the plant.
+            Keep the generated UUID or replace it with your own before registering the plant.
           </p>
 
           {createError ? <p className="form-error">{createError}</p> : null}
