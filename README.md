@@ -89,6 +89,18 @@ The gauge computes moisture from raw values using:
 - Default wet value: `1500`
 - Wet value slider range: `500..2049`
 
+## Plant platform
+
+For the multi-plant Vercel version, use [`plant-platform/`](./plant-platform). It is a separate Next.js app with a persistent Postgres-backed API and a card-based dashboard for all registered plants.
+
+The matching ESP32 sketch for that app is [`plant-platform-sensor.cpp`](./plant-platform-sensor.cpp). It keeps serial output for the USB workshop path, and when Wi-Fi plus a plant UUID are configured it POSTs raw readings to:
+
+```text
+/api/plants/<uuid>/readings
+```
+
+That platform stores plant metadata plus the latest reading snapshot for each plant. It does not keep a historical readings table.
+
 ## API
 
 ### POST `/api/readings`
