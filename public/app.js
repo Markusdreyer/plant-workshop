@@ -14,7 +14,6 @@
     rawValue: document.querySelector("#raw-value"),
     readingSource: document.querySelector("#reading-source"),
     serialButton: document.querySelector("#serial-button"),
-    transportStatus: document.querySelector("#transport-status"),
     updatedAt: document.querySelector("#updated-at"),
     wetSlider: document.querySelector("#wet-value"),
     wetThreshold: document.querySelector("#wet-threshold"),
@@ -125,6 +124,12 @@
     elements.feedStatus.textContent = labels[nextMode];
   }
 
+  function setTransportStatus(statusText) {
+    if (!statusText) {
+      return;
+    }
+  }
+
   function markFeedActivity() {
     if (!state.feedConnected) {
       return;
@@ -144,7 +149,7 @@
   function resetSerialUi(statusText) {
     state.serialBuffer = "";
     elements.serialButton.textContent = "Connect via USB";
-    elements.transportStatus.textContent = statusText;
+    setTransportStatus(statusText);
   }
 
   function sanitizeWetValue(value) {
@@ -479,7 +484,7 @@
     };
 
     logDebug("Applying USB reading", reading);
-    elements.transportStatus.textContent = "USB streaming";
+    setTransportStatus("USB streaming");
     applyReading(reading);
     void postReading(rawValue, "usb-serial");
   }
@@ -501,7 +506,7 @@
       reason: reason || "user-request"
     });
     setSerialBusy(true);
-    elements.transportStatus.textContent = "USB disconnecting";
+    setTransportStatus("USB disconnecting");
 
     state.serialPort = null;
 
@@ -576,7 +581,7 @@
       } catch (error) {
         logDebug("Serial read failed", error);
         if (error.name !== "AbortError") {
-          elements.transportStatus.textContent = "USB error";
+          setTransportStatus("USB error");
         }
       } finally {
         if (state.serialReader === reader) {
@@ -618,7 +623,7 @@
 
     if (!("serial" in navigator)) {
       logDebug("Web Serial API is unavailable in this browser");
-      elements.transportStatus.textContent = "Web Serial unsupported";
+      setTransportStatus("Web Serial unsupported");
       return;
     }
 
@@ -633,11 +638,11 @@
       logDebug("Known serial ports before chooser", {
         count: knownPorts.length
       });
-      elements.transportStatus.textContent = "USB selecting";
+      setTransportStatus("USB selecting");
       logDebug("Opening USB chooser");
       state.serialPort = await navigator.serial.requestPort();
       logDebug("USB port selected");
-      elements.transportStatus.textContent = "USB opening";
+      setTransportStatus("USB opening");
       logDebug("Opening selected port", {
         baudRate: SERIAL_BAUD_RATE
       });
@@ -647,7 +652,7 @@
 
       logDebug("USB port opened successfully");
       elements.serialButton.textContent = "Disconnect USB";
-      elements.transportStatus.textContent = "USB connected";
+      setTransportStatus("USB connected");
       state.serialReadLoopPromise = readSerialLoop(state.serialPort).finally(function () {
         state.serialReadLoopPromise = null;
       });
@@ -655,7 +660,7 @@
       logDebug("USB serial connection failed", error);
       state.serialPort = null;
       if (error && error.name === "NotFoundError") {
-        elements.transportStatus.textContent = "USB selection cancelled";
+        setTransportStatus("USB selection cancelled");
         return;
       }
 
@@ -663,21 +668,21 @@
         logDebug(
           "Likely fix: close Arduino Serial Monitor, Serial Plotter, or any other app using the port"
         );
-        elements.transportStatus.textContent = "USB busy, close serial monitor";
+        setTransportStatus("USB busy, close serial monitor");
         return;
       }
 
       if (error && error.name === "InvalidStateError") {
-        elements.transportStatus.textContent = "USB already open";
+        setTransportStatus("USB already open");
         return;
       }
 
       if (error && error.name === "SecurityError") {
-        elements.transportStatus.textContent = "USB blocked by browser";
+        setTransportStatus("USB blocked by browser");
         return;
       }
 
-      elements.transportStatus.textContent = "USB failed";
+      setTransportStatus("USB failed");
     } finally {
       setSerialBusy(false);
     }
