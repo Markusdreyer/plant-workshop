@@ -265,11 +265,11 @@
     }
 
     if (source === "usb-serial") {
-      return "USB serial";
+      return "USB";
     }
 
     if (source === "esp32-wifi") {
-      return "ESP32 Wi-Fi";
+      return "API";
     }
 
     if (source === "api") {
