@@ -42,9 +42,25 @@ Wire diagram:
 
 ## Sensor sketch
 
-[`moisture-test.cpp`](./moisture-test.cpp) now prints raw analog values over serial at `115200`. That keeps the calibration in the frontend, where the workshop participants can tune the wet threshold live.
+[`direct-serial-implementation.cpp`](./direct-serial-implementation.cpp) is the minimal serial-only sketch for the basic workshop path. [`dual-mode-moisture-sensor.cpp`](./dual-mode-moisture-sensor.cpp) adds optional Wi-Fi/API posting for participants who want the board to run without a laptop attached.
 
 Dry is fixed at `4095`.
+
+### Two workshop levels
+
+Basic path:
+
+1. Leave `wifiSsid`, `wifiPassword`, and `serverUrl` empty in the sketch.
+2. Upload [`direct-serial-implementation.cpp`](./direct-serial-implementation.cpp).
+3. Connect the ESP32 over USB and use the dashboard's `Connect via USB` button.
+
+Advanced path:
+
+1. Fill in `wifiSsid`, `wifiPassword`, and `serverUrl` in [`dual-mode-moisture-sensor.cpp`](./dual-mode-moisture-sensor.cpp).
+2. Upload that sketch.
+3. The ESP32 will keep emitting raw values on serial and will also POST raw values to the API whenever Wi-Fi is connected.
+
+If any of the three network values are left empty, the board stays in serial-only mode and does not attempt Wi-Fi or HTTP at all.
 
 ## Dashboard
 
@@ -65,6 +81,8 @@ The UI supports two ways of getting readings:
 1. Click `Connect via USB` in a Chromium-based browser to read the ESP32 serial output directly.
 2. POST raw values to the local API.
 
+If the ESP32 has Wi-Fi configured and you also connect it over USB in the browser, both transports can report the same readings. For workshop use, prefer one transport per session.
+
 The gauge computes moisture from raw values using:
 
 - Dry value: `4095`
@@ -80,7 +98,7 @@ Send the raw reading as JSON:
 ```bash
 curl -X POST http://localhost:3000/api/readings \
   -H "Content-Type: application/json" \
-  -d '{"rawValue": 1780, "source": "esp32"}'
+  -d '{"rawValue": 1780, "source": "esp32-wifi"}'
 ```
 
 ### GET `/api/readings/latest`
