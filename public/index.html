@@ -104,6 +104,17 @@
               </div>
             </div>
 
+            <details class="api-panel">
+              <summary>API</summary>
+              <p class="api-copy">
+                POST raw values to <code>/api/readings</code> as JSON. Live clients listen on
+                <code>/api/events</code>.
+              </p>
+              <pre class="code-block"><code>curl -X POST http://localhost:3000/api/readings \
+  -H "Content-Type: application/json" \
+  -d '{"rawValue": 1780, "source": "esp32"}'</code></pre>
+            </details>
+
             <details class="debug-panel">
               <summary>Debug log</summary>
               <p class="api-copy">

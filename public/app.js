@@ -3,6 +3,7 @@
   const GAUGE_RADIUS = 92;
   const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
   const SERIAL_BAUD_RATE = 115200;
+  const FEED_ACTIVITY_WINDOW_MS = 4000;
 
   const elements = {
     debugLog: document.querySelector("#debug-log"),
@@ -24,7 +25,9 @@
     animationFrame: null,
     currentPercent: 0,
     debugEntries: [],
+    feedActivityTimer: null,
     feedConnected: false,
+    feedStatusMode: "standby",
     latestReading: null,
     serialBuffer: "",
     serialBusy: false,
@@ -97,11 +100,51 @@
     elements.serialButton.disabled = isBusy;
   }
 
+  function clearFeedActivityTimer() {
+    if (!state.feedActivityTimer) {
+      return;
+    }
+
+    window.clearTimeout(state.feedActivityTimer);
+    state.feedActivityTimer = null;
+  }
+
+  function setFeedStatus(mode) {
+    const labels = {
+      connected: "Waiting for readings",
+      live: "API live",
+      standby: "API standby",
+      reconnecting: "API reconnecting",
+      offline: "API offline",
+      "config-failed": "Config failed"
+    };
+    const nextMode = labels[mode] ? mode : "standby";
+
+    state.feedStatusMode = nextMode;
+    elements.feedStatus.dataset.state = nextMode;
+    elements.feedStatus.textContent = labels[nextMode];
+  }
+
+  function markFeedActivity() {
+    if (!state.feedConnected) {
+      return;
+    }
+
+    clearFeedActivityTimer();
+    setFeedStatus("live");
+    state.feedActivityTimer = window.setTimeout(function () {
+      state.feedActivityTimer = null;
+
+      if (state.feedConnected) {
+        setFeedStatus("connected");
+      }
+    }, FEED_ACTIVITY_WINDOW_MS);
+  }
+
   function resetSerialUi(statusText) {
     state.serialBuffer = "";
     elements.serialButton.textContent = "Connect via USB";
     elements.transportStatus.textContent = statusText;
-    elements.feedStatus.textContent = state.feedConnected ? "API live" : "API standby";
   }
 
   function sanitizeWetValue(value) {
@@ -377,7 +420,7 @@
       });
     } catch (error) {
       logDebug("Posting reading to API failed", error);
-      elements.feedStatus.textContent = "API offline";
+      setFeedStatus("offline");
     }
   }
 
@@ -646,7 +689,8 @@
     eventSource.addEventListener("open", function () {
       state.feedConnected = true;
       logDebug("SSE connection opened");
-      elements.feedStatus.textContent = "API live";
+      clearFeedActivityTimer();
+      setFeedStatus("connected");
     });
 
     eventSource.addEventListener("snapshot", function (event) {
@@ -664,6 +708,10 @@
       const payload = JSON.parse(event.data);
       logDebug("SSE reading received", payload && payload.reading);
 
+      if (payload && payload.reading) {
+        markFeedActivity();
+      }
+
       if (payload && payload.reading && !state.serialPort) {
         applyReading(payload.reading);
       }
@@ -671,8 +719,9 @@
 
     eventSource.addEventListener("error", function () {
       state.feedConnected = false;
+      clearFeedActivityTimer();
       logDebug("SSE connection error");
-      elements.feedStatus.textContent = "API reconnecting";
+      setFeedStatus("reconnecting");
     });
   }
 
@@ -716,7 +765,7 @@
     try {
       await loadConfig();
     } catch (error) {
-      elements.feedStatus.textContent = "Config failed";
+      setFeedStatus("config-failed");
     }
 
     const storedWetValue = localStorage.getItem(STORAGE_KEY);
@@ -741,7 +790,7 @@
     try {
       await loadLatestReading();
     } catch (error) {
-      elements.feedStatus.textContent = "API offline";
+      setFeedStatus("offline");
     }
   }
 

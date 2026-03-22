@@ -170,11 +170,91 @@ summary {
   display: inline-flex;
   font-size: 0.92rem;
   font-weight: 600;
+  gap: 10px;
+  align-items: center;
   padding: 10px 14px;
+  position: relative;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+}
+
+#feed-status::before {
+  background: hsl(196 14% 62%);
+  border-radius: 50%;
+  content: "";
+  flex: 0 0 auto;
+  height: 10px;
+  width: 10px;
+}
+
+#feed-status[data-state="connected"] {
+  background: hsl(0 0% 100% / 0.82);
+  border-color: hsl(197 18% 82% / 0.92);
+  box-shadow: 0 8px 20px hsl(198 18% 36% / 0.06);
+  color: hsl(197 15% 40%);
+}
+
+#feed-status[data-state="connected"]::before {
+  background: hsl(196 12% 58%);
+}
+
+#feed-status[data-state="live"] {
+  background: hsl(155 48% 94% / 0.92);
+  border-color: hsl(154 45% 78% / 0.9);
+  box-shadow: 0 10px 28px hsl(154 50% 34% / 0.12);
+  color: hsl(164 54% 22%);
+}
+
+#feed-status[data-state="live"]::before {
+  animation: status-pulse 1.7s ease-out infinite;
+  background: hsl(154 72% 42%);
+}
+
+#feed-status[data-state="reconnecting"] {
+  background: hsl(38 100% 95% / 0.9);
+  border-color: hsl(34 90% 78% / 0.84);
+  color: hsl(24 72% 34%);
+}
+
+#feed-status[data-state="reconnecting"]::before {
+  background: hsl(28 88% 53%);
+}
+
+#feed-status[data-state="offline"],
+#feed-status[data-state="config-failed"] {
+  background: hsl(0 0% 100% / 0.82);
+  border-color: hsl(197 18% 82% / 0.92);
+  color: hsl(197 15% 40%);
+}
+
+#feed-status[data-state="offline"]::before,
+#feed-status[data-state="config-failed"]::before,
+#feed-status[data-state="standby"]::before {
+  background: hsl(196 14% 62%);
 }
 
 .status-pill-subtle {
   color: var(--text-soft);
+}
+
+@keyframes status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(154 72% 42% / 0.34);
+    transform: scale(0.96);
+  }
+
+  60% {
+    box-shadow: 0 0 0 9px hsl(154 72% 42% / 0);
+    transform: scale(1);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 hsl(154 72% 42% / 0);
+    transform: scale(0.96);
+  }
 }
 
 .dashboard-grid {
