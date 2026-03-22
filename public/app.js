@@ -1,0 +1,618 @@
+(function () {
+  const STORAGE_KEY = "plant-moisture-wet-value";
+  const GAUGE_RADIUS = 92;
+  const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
+  const SERIAL_BAUD_RATE = 115200;
+
+  const elements = {
+    debugLog: document.querySelector("#debug-log"),
+    feedStatus: document.querySelector("#feed-status"),
+    gaugeProgress: document.querySelector("#gauge-progress"),
+    moisturePercent: document.querySelector("#moisture-percent"),
+    moistureStatus: document.querySelector("#moisture-status"),
+    rawValue: document.querySelector("#raw-value"),
+    readingSource: document.querySelector("#reading-source"),
+    serialButton: document.querySelector("#serial-button"),
+    transportStatus: document.querySelector("#transport-status"),
+    updatedAt: document.querySelector("#updated-at"),
+    wetSlider: document.querySelector("#wet-value"),
+    wetThreshold: document.querySelector("#wet-threshold"),
+    wetValueOutput: document.querySelector("#wet-value-output")
+  };
+
+  const state = {
+    animationFrame: null,
+    currentPercent: 0,
+    debugEntries: [],
+    feedConnected: false,
+    latestReading: null,
+    serialBuffer: "",
+    serialPort: null,
+    serialReader: null,
+    targetPercent: 0,
+    wetValue: 1500,
+    calibration: {
+      defaultWetValue: 1500,
+      dryValue: 4095,
+      wetValueRange: {
+        min: 500,
+        max: 2049
+      }
+    }
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function formatDebugValue(value) {
+    if (value instanceof Error) {
+      return JSON.stringify({
+        message: value.message,
+        name: value.name
+      });
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function logDebug(message, details) {
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    const parts = [`[${timestamp}]`, message];
+
+    if (typeof details !== "undefined") {
+      parts.push(formatDebugValue(details));
+    }
+
+    const line = parts.join(" ");
+
+    state.debugEntries.push(line);
+
+    if (state.debugEntries.length > 120) {
+      state.debugEntries.shift();
+    }
+
+    elements.debugLog.textContent = state.debugEntries.join("\n");
+    elements.debugLog.scrollTop = elements.debugLog.scrollHeight;
+    console.log(line);
+  }
+
+  function sanitizeWetValue(value) {
+    const numericValue = Number(value);
+    const min = state.calibration.wetValueRange.min;
+    const max = state.calibration.wetValueRange.max;
+
+    if (!Number.isFinite(numericValue)) {
+      return state.calibration.defaultWetValue;
+    }
+
+    return clamp(Math.round(numericValue), min, max);
+  }
+
+  function calculatePercent(rawValue, wetValue) {
+    const numericRawValue = Number(rawValue);
+
+    if (!Number.isFinite(numericRawValue)) {
+      return 0;
+    }
+
+    const clampedRawValue = clamp(
+      Math.round(numericRawValue),
+      0,
+      state.calibration.dryValue
+    );
+    const normalizedWetValue = sanitizeWetValue(wetValue);
+    const range = state.calibration.dryValue - normalizedWetValue;
+
+    if (range <= 0) {
+      return clampedRawValue <= normalizedWetValue ? 100 : 0;
+    }
+
+    return clamp(
+      ((state.calibration.dryValue - clampedRawValue) / range) * 100,
+      0,
+      100
+    );
+  }
+
+  function describeMoisture(percent) {
+    if (!state.latestReading) {
+      return "Waiting for reading";
+    }
+
+    if (percent < 25) {
+      return "Dry";
+    }
+
+    if (percent < 60) {
+      return "Comfortable";
+    }
+
+    return "Wet";
+  }
+
+  function interpolate(start, end, progress) {
+    return start + (end - start) * progress;
+  }
+
+  function gaugeColor(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(18, 154, progress);
+    const saturation = interpolate(85, 62, progress);
+    const lightness = interpolate(58, 42, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}%)`;
+  }
+
+  function gaugeColorSoft(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(18, 154, progress);
+    const saturation = interpolate(86, 62, progress);
+    const lightness = interpolate(58, 52, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}% / 0.16)`;
+  }
+
+  function sourceLabel(source) {
+    if (!source) {
+      return "--";
+    }
+
+    if (source === "usb-serial") {
+      return "USB serial";
+    }
+
+    if (source === "api") {
+      return "API";
+    }
+
+    return source.replace(/[-_]/g, " ");
+  }
+
+  function formatTimestamp(timestamp) {
+    if (!timestamp) {
+      return "--";
+    }
+
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+      return "--";
+    }
+
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
+  function updateTheme(percent) {
+    const accent = gaugeColor(percent);
+    const accentSoft = gaugeColorSoft(percent);
+
+    document.documentElement.style.setProperty("--accent", accent);
+    document.documentElement.style.setProperty("--accent-soft", accentSoft);
+    document.documentElement.style.setProperty(
+      "--accent-deep",
+      gaugeColor(clamp(percent + 12, 0, 100))
+    );
+    elements.gaugeProgress.style.stroke = accent;
+  }
+
+  function renderGauge(percent) {
+    const normalizedPercent = clamp(percent, 0, 100);
+    const dashOffset =
+      GAUGE_CIRCUMFERENCE -
+      (GAUGE_CIRCUMFERENCE * normalizedPercent) / 100;
+
+    elements.gaugeProgress.style.strokeDasharray = `${GAUGE_CIRCUMFERENCE}`;
+    elements.gaugeProgress.style.strokeDashoffset = `${dashOffset}`;
+    elements.moisturePercent.textContent = `${Math.round(normalizedPercent)}%`;
+    elements.moistureStatus.textContent = describeMoisture(state.targetPercent);
+    updateTheme(normalizedPercent);
+  }
+
+  function animateToPercent(nextPercent) {
+    if (state.animationFrame) {
+      cancelAnimationFrame(state.animationFrame);
+    }
+
+    const startPercent = state.currentPercent;
+    const endPercent = nextPercent;
+    const startTime = performance.now();
+    const duration = 700;
+
+    function step(now) {
+      const elapsed = now - startTime;
+      const progress = clamp(elapsed / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      state.currentPercent = interpolate(startPercent, endPercent, eased);
+      renderGauge(state.currentPercent);
+
+      if (progress < 1) {
+        state.animationFrame = requestAnimationFrame(step);
+      } else {
+        state.animationFrame = null;
+      }
+    }
+
+    state.animationFrame = requestAnimationFrame(step);
+  }
+
+  function updateReadingCards() {
+    if (!state.latestReading) {
+      elements.rawValue.textContent = "--";
+      elements.updatedAt.textContent = "--";
+      elements.readingSource.textContent = "--";
+      elements.moistureStatus.textContent = "Waiting for reading";
+      return;
+    }
+
+    elements.rawValue.textContent = `${state.latestReading.rawValue}`;
+    elements.updatedAt.textContent = formatTimestamp(state.latestReading.receivedAt);
+    elements.readingSource.textContent = sourceLabel(state.latestReading.source);
+  }
+
+  function refreshDerivedState() {
+    const nextPercent = state.latestReading
+      ? calculatePercent(state.latestReading.rawValue, state.wetValue)
+      : 0;
+
+    state.targetPercent = nextPercent;
+    animateToPercent(nextPercent);
+    updateReadingCards();
+  }
+
+  function setWetValue(value) {
+    state.wetValue = sanitizeWetValue(value);
+    elements.wetSlider.value = `${state.wetValue}`;
+    elements.wetThreshold.textContent = `${state.wetValue}`;
+    elements.wetValueOutput.textContent = `${state.wetValue}`;
+    localStorage.setItem(STORAGE_KEY, `${state.wetValue}`);
+    refreshDerivedState();
+  }
+
+  function applyReading(reading) {
+    if (!reading || typeof reading.rawValue === "undefined") {
+      return;
+    }
+
+    state.latestReading = {
+      rawValue: Number(reading.rawValue),
+      receivedAt: reading.receivedAt || new Date().toISOString(),
+      source: reading.source || "api"
+    };
+    refreshDerivedState();
+  }
+
+  async function postReading(rawValue, source) {
+    try {
+      const response = await fetch("/api/readings", {
+        body: JSON.stringify({
+          rawValue,
+          source
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        },
+        method: "POST"
+      });
+      logDebug("Posted reading to API", {
+        rawValue,
+        source,
+        status: response.status
+      });
+    } catch (error) {
+      logDebug("Posting reading to API failed", error);
+      elements.feedStatus.textContent = "API offline";
+    }
+  }
+
+  function parseRawValue(line) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    const plainNumberMatch = trimmed.match(/^(\d{1,4})$/);
+
+    if (plainNumberMatch) {
+      logDebug("Parsed plain serial line", trimmed);
+      return Number(plainNumberMatch[1]);
+    }
+
+    const legacyMatch = trimmed.match(/Raw analog:\s*(\d{1,4})/i);
+
+    if (legacyMatch) {
+      logDebug("Parsed legacy serial line", trimmed);
+      return Number(legacyMatch[1]);
+    }
+
+    const rawValueMatch = trimmed.match(/Raw value:\s*(\d{1,4})/i);
+
+    if (rawValueMatch) {
+      logDebug("Parsed raw-value serial line", trimmed);
+      return Number(rawValueMatch[1]);
+    }
+
+    const jsonMatch = trimmed.match(/"rawValue"\s*:\s*(\d{1,4})/i);
+
+    if (jsonMatch) {
+      logDebug("Parsed JSON serial line", trimmed);
+      return Number(jsonMatch[1]);
+    }
+
+    logDebug("Ignored serial line", trimmed);
+
+    return null;
+  }
+
+  function handleSerialLine(line) {
+    const rawValue = parseRawValue(line);
+
+    if (rawValue === null) {
+      return;
+    }
+
+    const reading = {
+      rawValue,
+      receivedAt: new Date().toISOString(),
+      source: "usb-serial"
+    };
+
+    logDebug("Applying USB reading", reading);
+    elements.transportStatus.textContent = "USB streaming";
+    applyReading(reading);
+    void postReading(rawValue, "usb-serial");
+  }
+
+  async function disconnectSerial() {
+    logDebug("Disconnecting USB serial");
+    if (state.serialReader) {
+      await state.serialReader.cancel().catch(() => {});
+      state.serialReader.releaseLock();
+      state.serialReader = null;
+    }
+
+    if (state.serialPort) {
+      await state.serialPort.close().catch(() => {});
+      state.serialPort = null;
+    }
+
+    state.serialBuffer = "";
+    elements.serialButton.textContent = "Connect via USB";
+    elements.transportStatus.textContent = "USB ready";
+    elements.feedStatus.textContent = state.feedConnected ? "API live" : "API standby";
+  }
+
+  async function readSerialLoop() {
+    const decoder = new TextDecoder();
+
+    logDebug("Starting serial read loop");
+
+    while (state.serialPort && state.serialPort.readable) {
+      state.serialReader = state.serialPort.readable.getReader();
+      logDebug("Serial reader lock acquired");
+
+      try {
+        while (true) {
+          const result = await state.serialReader.read();
+
+          if (result.done) {
+            break;
+          }
+
+          state.serialBuffer += decoder.decode(result.value, {
+            stream: true
+          });
+
+          const lines = state.serialBuffer.split(/\r?\n/);
+          state.serialBuffer = lines.pop() || "";
+
+          for (const line of lines) {
+            logDebug("Serial line received", line);
+            handleSerialLine(line);
+          }
+        }
+      } catch (error) {
+        logDebug("Serial read failed", error);
+        if (error.name !== "AbortError") {
+          elements.transportStatus.textContent = "USB error";
+        }
+      } finally {
+        if (state.serialReader) {
+          logDebug("Serial reader lock released");
+          state.serialReader.releaseLock();
+          state.serialReader = null;
+        }
+      }
+    }
+
+    if (state.serialPort) {
+      await disconnectSerial();
+    }
+  }
+
+  async function toggleSerialConnection() {
+    logDebug("Connect button clicked");
+    if (!("serial" in navigator)) {
+      logDebug("Web Serial API is unavailable in this browser");
+      elements.transportStatus.textContent = "Web Serial unsupported";
+      return;
+    }
+
+    if (state.serialPort) {
+      await disconnectSerial();
+      return;
+    }
+
+    try {
+      const knownPorts = await navigator.serial.getPorts();
+      logDebug("Known serial ports before chooser", {
+        count: knownPorts.length
+      });
+      elements.transportStatus.textContent = "USB selecting";
+      logDebug("Opening USB chooser");
+      state.serialPort = await navigator.serial.requestPort();
+      logDebug("USB port selected");
+      elements.transportStatus.textContent = "USB opening";
+      logDebug("Opening selected port", {
+        baudRate: SERIAL_BAUD_RATE
+      });
+      await state.serialPort.open({
+        baudRate: SERIAL_BAUD_RATE
+      });
+
+      logDebug("USB port opened successfully");
+      elements.serialButton.textContent = "Disconnect USB";
+      elements.transportStatus.textContent = "USB connected";
+      void readSerialLoop();
+    } catch (error) {
+      logDebug("USB serial connection failed", error);
+      state.serialPort = null;
+      if (error && error.name === "NotFoundError") {
+        elements.transportStatus.textContent = "USB selection cancelled";
+        return;
+      }
+
+      if (error && error.name === "NetworkError") {
+        logDebug(
+          "Likely fix: close Arduino Serial Monitor, Serial Plotter, or any other app using the port"
+        );
+        elements.transportStatus.textContent = "USB busy, close serial monitor";
+        return;
+      }
+
+      if (error && error.name === "InvalidStateError") {
+        elements.transportStatus.textContent = "USB already open";
+        return;
+      }
+
+      if (error && error.name === "SecurityError") {
+        elements.transportStatus.textContent = "USB blocked by browser";
+        return;
+      }
+
+      elements.transportStatus.textContent = "USB failed";
+    }
+  }
+
+  function subscribeToEvents() {
+    const eventSource = new EventSource("/api/events");
+    logDebug("Connecting to SSE feed");
+
+    eventSource.addEventListener("open", function () {
+      state.feedConnected = true;
+      logDebug("SSE connection opened");
+      elements.feedStatus.textContent = "API live";
+    });
+
+    eventSource.addEventListener("snapshot", function (event) {
+      const payload = JSON.parse(event.data);
+      logDebug("SSE snapshot received", {
+        hasReading: Boolean(payload && payload.reading)
+      });
+
+      if (payload && payload.reading && !state.serialPort) {
+        applyReading(payload.reading);
+      }
+    });
+
+    eventSource.addEventListener("reading", function (event) {
+      const payload = JSON.parse(event.data);
+      logDebug("SSE reading received", payload && payload.reading);
+
+      if (payload && payload.reading && !state.serialPort) {
+        applyReading(payload.reading);
+      }
+    });
+
+    eventSource.addEventListener("error", function () {
+      state.feedConnected = false;
+      logDebug("SSE connection error");
+      elements.feedStatus.textContent = "API reconnecting";
+    });
+  }
+
+  async function loadConfig() {
+    const response = await fetch("/api/config");
+    const config = await response.json();
+    logDebug("Loaded calibration config", config);
+
+    state.calibration = config;
+    elements.wetSlider.min = `${config.wetValueRange.min}`;
+    elements.wetSlider.max = `${config.wetValueRange.max}`;
+    elements.wetSlider.step = "1";
+  }
+
+  async function loadLatestReading() {
+    const response = await fetch("/api/readings/latest");
+    const payload = await response.json();
+    logDebug("Loaded latest reading", payload && payload.reading);
+
+    if (payload && payload.reading) {
+      applyReading(payload.reading);
+    }
+  }
+
+  async function init() {
+    logDebug("App boot", {
+      hasSerial: "serial" in navigator,
+      isSecureContext: window.isSecureContext,
+      origin: window.location.origin,
+      userAgent: navigator.userAgent
+    });
+    renderGauge(0);
+    elements.serialButton.addEventListener("click", function () {
+      void toggleSerialConnection();
+    });
+
+    elements.wetSlider.addEventListener("input", function (event) {
+      setWetValue(event.target.value);
+    });
+
+    try {
+      await loadConfig();
+    } catch (error) {
+      elements.feedStatus.textContent = "Config failed";
+    }
+
+    const storedWetValue = localStorage.getItem(STORAGE_KEY);
+    logDebug("Loaded stored wet threshold", storedWetValue);
+    setWetValue(storedWetValue || state.calibration.defaultWetValue);
+    subscribeToEvents();
+
+    if ("serial" in navigator && typeof navigator.serial.addEventListener === "function") {
+      navigator.serial.addEventListener("connect", function () {
+        logDebug("Browser detected serial device connect event");
+      });
+
+      navigator.serial.addEventListener("disconnect", function () {
+        logDebug("Browser detected serial device disconnect event");
+      });
+    }
+
+    try {
+      await loadLatestReading();
+    } catch (error) {
+      elements.feedStatus.textContent = "API offline";
+    }
+  }
+
+  init();
+})();
