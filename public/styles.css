@@ -1,7 +1,18 @@
 :root {
-  --accent: hsl(18 85% 58%);
-  --accent-soft: hsl(18 85% 58% / 0.16);
-  --accent-deep: hsl(18 90% 42%);
+  --ui-accent: hsl(18 85% 58%);
+  --ui-accent-deep: hsl(14 78% 41%);
+  --cta-accent: hsl(154 72% 43%);
+  --cta-accent-deep: hsl(167 78% 25%);
+  --gauge-accent: hsl(18 85% 58%);
+  --gauge-soft: hsl(18 85% 58% / 0.16);
+  --gauge-deep: hsl(18 90% 42%);
+  --bg-top-left: hsl(33 100% 84%);
+  --bg-bottom-right: hsl(188 69% 82%);
+  --blob-warm: hsl(24 100% 71% / 0.5);
+  --blob-cool: hsl(178 62% 64% / 0.45);
+  --slider-wet: hsl(205 78% 56%);
+  --slider-mid: hsl(44 88% 78%);
+  --slider-dry: hsl(24 87% 57%);
   --text: hsl(193 36% 16%);
   --text-soft: hsl(197 18% 36%);
   --panel: hsl(42 100% 98% / 0.86);
@@ -23,8 +34,8 @@ body {
 
 body {
   background:
-    radial-gradient(circle at top left, hsl(33 100% 84%), transparent 34%),
-    radial-gradient(circle at bottom right, hsl(188 69% 82%), transparent 38%),
+    radial-gradient(circle at top left, var(--bg-top-left), transparent 34%),
+    radial-gradient(circle at bottom right, var(--bg-bottom-right), transparent 38%),
     linear-gradient(180deg, hsl(38 86% 96%), hsl(204 72% 95%));
   color: var(--text);
   font-family: "Avenir Next", "Trebuchet MS", sans-serif;
@@ -54,7 +65,7 @@ summary {
 
 .blob-a {
   animation: drift 14s ease-in-out infinite;
-  background: hsl(24 100% 71% / 0.5);
+  background: var(--blob-warm);
   height: 260px;
   left: -40px;
   top: 40px;
@@ -63,7 +74,7 @@ summary {
 
 .blob-b {
   animation: drift 16s ease-in-out infinite reverse;
-  background: hsl(178 62% 64% / 0.45);
+  background: var(--blob-cool);
   bottom: 40px;
   height: 340px;
   right: -60px;
@@ -82,12 +93,16 @@ summary {
 }
 
 .eyebrow {
-  color: var(--accent-deep);
+  color: var(--ui-accent-deep);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   margin: 0 0 12px;
   text-transform: uppercase;
+}
+
+.hero-panel .eyebrow {
+  color: var(--gauge-deep);
 }
 
 .hero-panel h1,
@@ -119,10 +134,10 @@ summary {
 }
 
 .primary-button {
-  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  background: linear-gradient(135deg, var(--cta-accent), var(--cta-accent-deep));
   border: 0;
   border-radius: 999px;
-  box-shadow: 0 14px 32px hsl(18 90% 42% / 0.24);
+  box-shadow: 0 14px 32px hsl(167 78% 25% / 0.24);
   color: white;
   cursor: pointer;
   font-weight: 700;
@@ -133,7 +148,7 @@ summary {
 }
 
 .primary-button:hover {
-  box-shadow: 0 18px 36px hsl(18 90% 42% / 0.3);
+  box-shadow: 0 18px 36px hsl(167 78% 25% / 0.3);
   transform: translateY(-1px);
 }
 
@@ -202,7 +217,7 @@ summary {
 
 .gauge-shell::before {
   background:
-    radial-gradient(circle at center, var(--accent-soft), transparent 62%),
+    radial-gradient(circle at center, var(--gauge-soft), transparent 62%),
     linear-gradient(180deg, hsl(0 0% 100% / 0.86), hsl(0 0% 100% / 0.36));
   border: 1px solid hsl(0 0% 100% / 0.66);
   border-radius: 50%;
@@ -230,8 +245,8 @@ summary {
 }
 
 .gauge-progress {
-  filter: drop-shadow(0 8px 14px hsl(18 90% 42% / 0.25));
-  stroke: var(--accent);
+  filter: drop-shadow(0 8px 14px hsl(190 38% 20% / 0.18));
+  stroke: var(--gauge-accent);
   stroke-dasharray: 578.05;
   stroke-dashoffset: 578.05;
   transform: rotate(-90deg);
@@ -273,7 +288,7 @@ summary {
 }
 
 .gauge-status {
-  color: var(--accent-deep);
+  color: var(--gauge-deep);
   font-size: 1.05rem;
   font-weight: 700;
 }
@@ -328,14 +343,62 @@ summary {
 }
 
 .slider-label output {
-  color: var(--accent-deep);
+  color: var(--ui-accent-deep);
   font-size: 1.1rem;
 }
 
 .slider {
-  accent-color: var(--accent);
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
   cursor: pointer;
+  height: 30px;
   width: 100%;
+}
+
+.slider::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(90deg, var(--slider-dry), var(--slider-mid) 52%, var(--slider-wet));
+  border: 1px solid hsl(0 0% 100% / 0.72);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px hsl(0 0% 100% / 0.35);
+  height: 14px;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background:
+    radial-gradient(circle at 35% 35%, hsl(0 0% 100%), hsl(0 0% 100% / 0.86) 42%, hsl(194 21% 86%) 100%);
+  border: 2px solid hsl(0 0% 100% / 0.95);
+  border-radius: 50%;
+  box-shadow:
+    0 10px 24px hsl(194 30% 20% / 0.18),
+    inset 0 -2px 4px hsl(194 28% 24% / 0.16);
+  height: 26px;
+  margin-top: -7px;
+  width: 26px;
+}
+
+.slider::-moz-range-track {
+  background:
+    linear-gradient(90deg, var(--slider-dry), var(--slider-mid) 52%, var(--slider-wet));
+  border: 1px solid hsl(0 0% 100% / 0.72);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px hsl(0 0% 100% / 0.35);
+  height: 14px;
+}
+
+.slider::-moz-range-thumb {
+  background:
+    radial-gradient(circle at 35% 35%, hsl(0 0% 100%), hsl(0 0% 100% / 0.86) 42%, hsl(194 21% 86%) 100%);
+  border: 2px solid hsl(0 0% 100% / 0.95);
+  border-radius: 50%;
+  box-shadow:
+    0 10px 24px hsl(194 30% 20% / 0.18),
+    inset 0 -2px 4px hsl(194 28% 24% / 0.16);
+  height: 26px;
+  width: 26px;
 }
 
 .slider-scale,
@@ -352,7 +415,7 @@ summary {
 }
 
 .legend-gradient {
-  background: linear-gradient(90deg, hsl(18 85% 58%), hsl(154 62% 42%));
+  background: linear-gradient(90deg, var(--slider-dry), var(--slider-mid) 52%, var(--slider-wet));
   border-radius: 999px;
   flex: 1;
   height: 12px;

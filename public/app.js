@@ -180,6 +180,42 @@
     return `hsl(${hue} ${saturation}% ${lightness}% / 0.16)`;
   }
 
+  function backgroundWarmColor(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(33, 78, progress);
+    const saturation = interpolate(100, 70, progress);
+    const lightness = interpolate(84, 80, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}%)`;
+  }
+
+  function backgroundCoolColor(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(188, 164, progress);
+    const saturation = interpolate(69, 48, progress);
+    const lightness = interpolate(82, 78, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}%)`;
+  }
+
+  function blobWarmColor(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(24, 110, progress);
+    const saturation = interpolate(100, 48, progress);
+    const lightness = interpolate(71, 66, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}% / 0.44)`;
+  }
+
+  function blobCoolColor(percent) {
+    const progress = clamp(percent / 100, 0, 1);
+    const hue = interpolate(178, 158, progress);
+    const saturation = interpolate(62, 42, progress);
+    const lightness = interpolate(64, 60, progress);
+
+    return `hsl(${hue} ${saturation}% ${lightness}% / 0.36)`;
+  }
+
   function sourceLabel(source) {
     if (!source) {
       return "--";
@@ -222,12 +258,16 @@
     const accent = gaugeColor(percent);
     const accentSoft = gaugeColorSoft(percent);
 
-    document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty("--accent-soft", accentSoft);
+    document.documentElement.style.setProperty("--gauge-accent", accent);
+    document.documentElement.style.setProperty("--gauge-soft", accentSoft);
     document.documentElement.style.setProperty(
-      "--accent-deep",
+      "--gauge-deep",
       gaugeColor(clamp(percent + 12, 0, 100))
     );
+    document.documentElement.style.setProperty("--bg-top-left", backgroundWarmColor(percent));
+    document.documentElement.style.setProperty("--bg-bottom-right", backgroundCoolColor(percent));
+    document.documentElement.style.setProperty("--blob-warm", blobWarmColor(percent));
+    document.documentElement.style.setProperty("--blob-cool", blobCoolColor(percent));
     elements.gaugeProgress.style.stroke = accent;
   }
 
