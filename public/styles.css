@@ -89,7 +89,7 @@ summary {
 }
 
 .hero-panel {
-  margin-bottom: 28px;
+  margin-bottom: 22px;
 }
 
 .eyebrow {
@@ -113,16 +113,16 @@ summary {
 }
 
 .hero-panel h1 {
-  font-size: clamp(2.8rem, 7vw, 5.2rem);
-  max-width: 12ch;
+  font-size: clamp(2.4rem, 5.8vw, 4.6rem);
+  max-width: 12.5ch;
 }
 
 .hero-copy {
   color: var(--text-soft);
-  font-size: 1.05rem;
-  line-height: 1.6;
-  margin: 18px 0 0;
-  max-width: 42rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  margin: 14px 0 0;
+  max-width: 34rem;
 }
 
 .hero-actions {
@@ -130,7 +130,7 @@ summary {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 18px;
 }
 
 .primary-button {
@@ -572,6 +572,28 @@ code {
 }
 
 @media (max-width: 960px) {
+  .page-shell {
+    padding: 32px 18px 40px;
+  }
+
+  .hero-panel {
+    margin-bottom: 18px;
+  }
+
+  .hero-panel h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    max-width: none;
+  }
+
+  .hero-copy {
+    font-size: 0.98rem;
+    max-width: 30rem;
+  }
+
+  .hero-actions {
+    margin-top: 16px;
+  }
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
@@ -583,7 +605,29 @@ code {
 
 @media (max-width: 720px) {
   .page-shell {
-    padding: 24px 14px 40px;
+    padding: 20px 14px 32px;
+  }
+
+  .hero-panel {
+    margin-bottom: 16px;
+  }
+
+  .eyebrow {
+    margin-bottom: 8px;
+  }
+
+  .hero-panel h1 {
+    font-size: clamp(1.8rem, 8.6vw, 2.5rem);
+    max-width: none;
+  }
+
+  .hero-copy {
+    margin-top: 12px;
+  }
+
+  .hero-actions {
+    gap: 10px;
+    margin-top: 14px;
   }
 
   .panel {
@@ -594,9 +638,5 @@ code {
   .reading-grid,
   .threshold-summary {
     grid-template-columns: 1fr;
-  }
-
-  .hero-panel h1 {
-    max-width: none;
   }
 }
