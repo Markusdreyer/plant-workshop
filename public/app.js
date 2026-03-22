@@ -27,7 +27,10 @@
     feedConnected: false,
     latestReading: null,
     serialBuffer: "",
+    serialBusy: false,
+    serialDisconnectPromise: null,
     serialPort: null,
+    serialReadLoopPromise: null,
     serialReader: null,
     targetPercent: 0,
     wetValue: 1500,
@@ -87,6 +90,18 @@
     elements.debugLog.textContent = state.debugEntries.join("\n");
     elements.debugLog.scrollTop = elements.debugLog.scrollHeight;
     console.log(line);
+  }
+
+  function setSerialBusy(isBusy) {
+    state.serialBusy = isBusy;
+    elements.serialButton.disabled = isBusy;
+  }
+
+  function resetSerialUi(statusText) {
+    state.serialBuffer = "";
+    elements.serialButton.textContent = "Connect via USB";
+    elements.transportStatus.textContent = statusText;
+    elements.feedStatus.textContent = state.feedConnected ? "API live" : "API standby";
   }
 
   function sanitizeWetValue(value) {
@@ -172,6 +187,10 @@
 
     if (source === "usb-serial") {
       return "USB serial";
+    }
+
+    if (source === "esp32-wifi") {
+      return "ESP32 Wi-Fi";
     }
 
     if (source === "api") {
@@ -381,37 +400,78 @@
     void postReading(rawValue, "usb-serial");
   }
 
-  async function disconnectSerial() {
-    logDebug("Disconnecting USB serial");
-    if (state.serialReader) {
-      await state.serialReader.cancel().catch(() => {});
-      state.serialReader.releaseLock();
+  async function disconnectSerial(reason) {
+    if (state.serialDisconnectPromise) {
+      return state.serialDisconnectPromise;
+    }
+
+    const port = state.serialPort;
+    const reader = state.serialReader;
+
+    if (!port && !state.serialReadLoopPromise) {
+      resetSerialUi("USB ready");
+      return;
+    }
+
+    logDebug("Disconnecting USB serial", {
+      reason: reason || "user-request"
+    });
+    setSerialBusy(true);
+    elements.transportStatus.textContent = "USB disconnecting";
+
+    state.serialPort = null;
+
+    state.serialDisconnectPromise = (async function () {
+      if (reader) {
+        try {
+          await reader.cancel();
+          logDebug("Serial reader cancel requested");
+        } catch (error) {
+          logDebug("Serial reader cancel failed", error);
+        }
+      }
+
+      if (state.serialReadLoopPromise) {
+        try {
+          await state.serialReadLoopPromise;
+        } catch (error) {
+          logDebug("Serial read loop ended during disconnect", error);
+        }
+      }
+
+      if (port) {
+        try {
+          await port.close();
+          logDebug("USB port closed");
+        } catch (error) {
+          logDebug("USB port close failed", error);
+        }
+      }
+
       state.serialReader = null;
-    }
+      state.serialReadLoopPromise = null;
+      resetSerialUi("USB ready");
+    })().finally(function () {
+      state.serialDisconnectPromise = null;
+      setSerialBusy(false);
+    });
 
-    if (state.serialPort) {
-      await state.serialPort.close().catch(() => {});
-      state.serialPort = null;
-    }
-
-    state.serialBuffer = "";
-    elements.serialButton.textContent = "Connect via USB";
-    elements.transportStatus.textContent = "USB ready";
-    elements.feedStatus.textContent = state.feedConnected ? "API live" : "API standby";
+    return state.serialDisconnectPromise;
   }
 
-  async function readSerialLoop() {
+  async function readSerialLoop(port) {
     const decoder = new TextDecoder();
 
     logDebug("Starting serial read loop");
 
-    while (state.serialPort && state.serialPort.readable) {
-      state.serialReader = state.serialPort.readable.getReader();
+    while (state.serialPort === port && port.readable) {
+      const reader = port.readable.getReader();
+      state.serialReader = reader;
       logDebug("Serial reader lock acquired");
 
       try {
         while (true) {
-          const result = await state.serialReader.read();
+          const result = await reader.read();
 
           if (result.done) {
             break;
@@ -435,21 +495,43 @@
           elements.transportStatus.textContent = "USB error";
         }
       } finally {
-        if (state.serialReader) {
-          logDebug("Serial reader lock released");
-          state.serialReader.releaseLock();
+        if (state.serialReader === reader) {
           state.serialReader = null;
+        }
+
+        try {
+          logDebug("Serial reader lock released");
+          reader.releaseLock();
+        } catch (error) {
+          logDebug("Serial reader release failed", error);
         }
       }
     }
 
-    if (state.serialPort) {
-      await disconnectSerial();
+    logDebug("Serial read loop ended");
+
+    if (state.serialPort === port) {
+      state.serialPort = null;
+
+      try {
+        await port.close();
+        logDebug("USB port closed after read loop ended");
+      } catch (error) {
+        logDebug("USB port close after read loop failed", error);
+      }
+
+      resetSerialUi("USB disconnected");
     }
   }
 
   async function toggleSerialConnection() {
     logDebug("Connect button clicked");
+
+    if (state.serialBusy) {
+      logDebug("Ignoring USB button click while a serial transition is active");
+      return;
+    }
+
     if (!("serial" in navigator)) {
       logDebug("Web Serial API is unavailable in this browser");
       elements.transportStatus.textContent = "Web Serial unsupported";
@@ -457,11 +539,12 @@
     }
 
     if (state.serialPort) {
-      await disconnectSerial();
+      await disconnectSerial("user-request");
       return;
     }
 
     try {
+      setSerialBusy(true);
       const knownPorts = await navigator.serial.getPorts();
       logDebug("Known serial ports before chooser", {
         count: knownPorts.length
@@ -481,7 +564,9 @@
       logDebug("USB port opened successfully");
       elements.serialButton.textContent = "Disconnect USB";
       elements.transportStatus.textContent = "USB connected";
-      void readSerialLoop();
+      state.serialReadLoopPromise = readSerialLoop(state.serialPort).finally(function () {
+        state.serialReadLoopPromise = null;
+      });
     } catch (error) {
       logDebug("USB serial connection failed", error);
       state.serialPort = null;
@@ -509,6 +594,8 @@
       }
 
       elements.transportStatus.textContent = "USB failed";
+    } finally {
+      setSerialBusy(false);
     }
   }
 
@@ -604,6 +691,10 @@
 
       navigator.serial.addEventListener("disconnect", function () {
         logDebug("Browser detected serial device disconnect event");
+
+        if (state.serialPort && !state.serialDisconnectPromise) {
+          void disconnectSerial("device-disconnect-event");
+        }
       });
     }
 
