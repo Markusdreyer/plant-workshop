@@ -5,6 +5,7 @@ A separate multi-plant dashboard for the workshop. This app is designed for:
 - `Next.js` App Router on Vercel
 - `Neon Postgres` as the persistence layer
 - UUID-based sensor ingestion at `POST /api/plants/:plantId/readings`
+- browser-side USB serial intake for per-plant streaming in Chrome or Edge
 
 ## Why this stack
 
@@ -36,6 +37,15 @@ A separate multi-plant dashboard for the workshop. This app is designed for:
 The database schema is created automatically on first request.
 
 The app persists plant metadata and the latest reading snapshot for each plant. It does not keep a historical readings log.
+
+## Workshop flow
+
+Each plant supports two ways of getting readings in:
+
+1. Open the plant settings modal and click `Connect via USB` to stream raw values straight from the board in the browser.
+2. Configure [`../plant-platform-sensor.cpp`](../plant-platform-sensor.cpp) and let the ESP32 post directly to the plant API by UUID.
+
+USB readings are mirrored back to the same API endpoint, so other viewers of the dashboard see those updates too.
 
 ## API overview
 

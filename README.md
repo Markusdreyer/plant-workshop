@@ -40,9 +40,9 @@ Wire diagram:
 
 ![](./assets/My%20First%20Board%20-%20Frame%202.jpg)
 
-## Sensor sketch
+## Plant platform
 
-[`direct-serial-implementation.cpp`](./direct-serial-implementation.cpp) is the minimal serial-only sketch for the basic workshop path. [`dual-mode-moisture-sensor.cpp`](./dual-mode-moisture-sensor.cpp) adds optional Wi-Fi/API posting for participants who want the board to run without a laptop attached.
+The workshop now runs through [`plant-platform/`](./plant-platform) only. It is a Next.js app intended for Vercel, backed by Neon Postgres, with one dashboard for every registered plant.
 
 Dry is fixed at `4095`.
 
@@ -50,84 +50,28 @@ Dry is fixed at `4095`.
 
 Basic path:
 
-1. Leave `wifiSsid`, `wifiPassword`, and `serverUrl` empty in the sketch.
-2. Upload [`direct-serial-implementation.cpp`](./direct-serial-implementation.cpp).
-3. Connect the ESP32 over USB and use the dashboard's `Connect via USB` button.
+1. Upload [`direct-serial-implementation.cpp`](./direct-serial-implementation.cpp).
+2. Open the deployed Plant Platform in Chrome or Edge.
+3. Create a plant, open its settings, and click `Connect via USB`.
 
 Advanced path:
 
-1. Fill in `wifiSsid`, `wifiPassword`, and `serverUrl` in [`dual-mode-moisture-sensor.cpp`](./dual-mode-moisture-sensor.cpp).
+1. Fill in `wifiSsid`, `wifiPassword`, `serverBaseUrl`, and `plantId` in [`plant-platform-sensor.cpp`](./plant-platform-sensor.cpp).
 2. Upload that sketch.
-3. The ESP32 will keep emitting raw values on serial and will also POST raw values to the API whenever Wi-Fi is connected.
+3. The ESP32 will keep emitting raw values on serial and will also POST raw values straight to the deployed Plant Platform whenever Wi-Fi is connected.
 
-If any of the three network values are left empty, the board stays in serial-only mode and does not attempt Wi-Fi or HTTP at all.
+If any of the network values are left empty in [`plant-platform-sensor.cpp`](./plant-platform-sensor.cpp), the board stays in serial-only mode and does not attempt Wi-Fi or HTTP at all.
 
-## Dashboard
+### Platform behavior
 
-Start the local app:
+The deployed dashboard supports two input paths:
 
-```bash
-npm start
-```
+1. Browser USB: connect a board straight from a plant’s settings modal in a Chromium-based browser.
+2. Direct device API: POST raw values to `/api/plants/<uuid>/readings`.
 
-Then open:
+USB-originated readings are mirrored back through the same plant API endpoint so other viewers see the latest updates too.
 
-```text
-http://localhost:3000
-```
-
-The UI supports two ways of getting readings:
-
-1. Click `Connect via USB` in a Chromium-based browser to read the ESP32 serial output directly.
-2. POST raw values to the local API.
-
-If the ESP32 has Wi-Fi configured and you also connect it over USB in the browser, both transports can report the same readings. For workshop use, prefer one transport per session.
-
-The gauge computes moisture from raw values using:
-
-- Dry value: `4095`
-- Default wet value: `1500`
-- Wet value slider range: `500..2049`
-
-## Plant platform
-
-For the multi-plant Vercel version, use [`plant-platform/`](./plant-platform). It is a separate Next.js app with a persistent Postgres-backed API and a card-based dashboard for all registered plants.
-
-The matching ESP32 sketch for that app is [`plant-platform-sensor.cpp`](./plant-platform-sensor.cpp). It keeps serial output for the USB workshop path, and when Wi-Fi plus a plant UUID are configured it POSTs raw readings to:
-
-```text
-/api/plants/<uuid>/readings
-```
-
-That platform stores plant metadata plus the latest reading snapshot for each plant. It does not keep a historical readings table.
-
-## API
-
-### POST `/api/readings`
-
-Send the raw reading as JSON:
-
-```bash
-curl -X POST http://localhost:3000/api/readings \
-  -H "Content-Type: application/json" \
-  -d '{"rawValue": 1780, "source": "esp32-wifi"}'
-```
-
-### GET `/api/readings/latest`
-
-Returns the latest reading plus the default calibration config.
-
-### GET `/api/events`
-
-Server-Sent Events stream for live dashboard updates.
-
-## Tests
-
-Run the calibration logic test with:
-
-```bash
-npm test
-```
+The platform stores plant metadata plus the latest reading snapshot for each plant. It does not keep a historical readings table.
 
 
 ## Result
