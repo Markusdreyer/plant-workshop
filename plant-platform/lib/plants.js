@@ -120,7 +120,7 @@ export async function listPlants() {
         created_at AS "createdAt",
         updated_at AS "updatedAt"
       FROM plants
-      ORDER BY COALESCE(latest_received_at, updated_at) DESC, created_at DESC
+      ORDER BY created_at ASC
     `;
 
     return rows.map(mapPlantSummary);
