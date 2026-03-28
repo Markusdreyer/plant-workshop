@@ -1,11 +1,14 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+
+import { decorateReading, normalizeRawValue } from "@/lib/moisture";
 
 const DEFAULT_WET_THRESHOLD = 1500;
 const MIN_WET_THRESHOLD = 500;
 const MAX_WET_THRESHOLD = 2049;
+const SERIAL_BAUD_RATE = 115200;
+const USB_SOURCE = "usb-serial";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -57,7 +60,11 @@ function formatTimestamp(timestamp) {
 }
 
 function createUuid() {
-  if (typeof window !== "undefined" && window.crypto && typeof window.crypto.randomUUID === "function") {
+  if (
+    typeof window !== "undefined" &&
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
     return window.crypto.randomUUID();
   }
 
@@ -83,17 +90,86 @@ async function fetchJson(url, options = {}) {
   const payload =
     response.status === 204
       ? null
-      : await response
-          .json()
-          .catch(function () {
-            return null;
-          });
+      : await response.json().catch(function () {
+          return null;
+        });
 
   if (!response.ok) {
     throw new Error(payload?.error || "Request failed");
   }
 
   return payload;
+}
+
+function sourceLabel(source) {
+  if (source === USB_SOURCE) {
+    return "USB";
+  }
+
+  return "API";
+}
+
+function sourceDescription(source) {
+  if (source === USB_SOURCE) {
+    return "Live from this browser";
+  }
+
+  return "Posted by the sensor";
+}
+
+function sourceTone(source) {
+  return source === USB_SOURCE ? "usb" : "api";
+}
+
+function parseRawValue(line) {
+  const trimmed = line.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const plainNumberMatch = trimmed.match(/^(\d{1,4})$/);
+
+  if (plainNumberMatch) {
+    return normalizeRawValue(plainNumberMatch[1]);
+  }
+
+  const legacyMatch = trimmed.match(/Raw analog:\s*(\d{1,4})/i);
+
+  if (legacyMatch) {
+    return normalizeRawValue(legacyMatch[1]);
+  }
+
+  const rawValueMatch = trimmed.match(/Raw value:\s*(\d{1,4})/i);
+
+  if (rawValueMatch) {
+    return normalizeRawValue(rawValueMatch[1]);
+  }
+
+  const jsonMatch = trimmed.match(/"rawValue"\s*:\s*(\d{1,4})/i);
+
+  if (jsonMatch) {
+    return normalizeRawValue(jsonMatch[1]);
+  }
+
+  return null;
+}
+
+function mergePlantsWithUsb(plants, activePlantId, liveReading) {
+  if (!activePlantId || !liveReading) {
+    return plants;
+  }
+
+  return plants.map(function (plant) {
+    if (plant.id !== activePlantId) {
+      return plant;
+    }
+
+    return {
+      ...plant,
+      latestReading: decorateReading(liveReading, plant.wetThreshold)
+    };
+  });
 }
 
 function PencilIcon() {
@@ -154,6 +230,20 @@ function CopyIcon() {
   );
 }
 
+function SourceChip({ source, subtle = false }) {
+  if (!source) {
+    return null;
+  }
+
+  return (
+    <span
+      className={`source-chip source-chip-${sourceTone(source)}${subtle ? " source-chip-subtle" : ""}`}
+    >
+      {sourceLabel(source)}
+    </span>
+  );
+}
+
 function PlantCard({ copied, onCopyUuid, onEdit, plant }) {
   const latestReading = plant.latestReading;
   const accent = moistureColor(latestReading?.moisturePercent);
@@ -174,9 +264,9 @@ function PlantCard({ copied, onCopyUuid, onEdit, plant }) {
       }}
     >
       <div className="card-header">
-        <div>
-          <p className="card-kicker">Plant</p>
-          <h2>{plant.name}</h2>
+        <div className="card-header-copy">
+          <SourceChip source={latestReading?.source} subtle />
+          <h2 className="card-title">{plant.name}</h2>
           <p className="card-meta">{lastSeenLabel}</p>
         </div>
         <button
@@ -255,7 +345,6 @@ function ModalHeader({ children, onClose, title }) {
 }
 
 export default function DashboardShell({ initialPlants }) {
-  const router = useRouter();
   const [plants, setPlants] = useState(initialPlants);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -269,31 +358,102 @@ export default function DashboardShell({ initialPlants }) {
   const [editThreshold, setEditThreshold] = useState(DEFAULT_WET_THRESHOLD);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [serialBusy, setSerialBusy] = useState(false);
+  const [usbStatus, setUsbStatus] = useState("");
+  const [activeUsbPlantId, setActiveUsbPlantId] = useState(null);
+  const serialPortRef = useRef(null);
+  const serialReaderRef = useRef(null);
+  const serialReadLoopPromiseRef = useRef(null);
+  const serialDisconnectPromiseRef = useRef(null);
+  const serialBufferRef = useRef("");
+  const activeUsbPlantIdRef = useRef(null);
+  const activeUsbReadingRef = useRef(null);
+  const refreshPlantsRef = useRef(async function () {});
+
+  function overlayUsb(nextPlants) {
+    return mergePlantsWithUsb(
+      nextPlants,
+      activeUsbPlantIdRef.current,
+      activeUsbReadingRef.current
+    );
+  }
 
   useEffect(
     function syncPlants() {
-      setPlants(initialPlants);
+      setPlants(overlayUsb(initialPlants));
     },
     [initialPlants]
   );
 
+  refreshPlantsRef.current = async function refreshPlants() {
+    try {
+      const payload = await fetchJson("/api/plants");
+      setPlants(overlayUsb(payload.plants));
+    } catch (_error) {
+      // Keep the current dashboard state until the next refresh succeeds.
+    }
+  };
+
   useEffect(function keepDashboardFresh() {
     const intervalId = window.setInterval(function () {
-      startTransition(function () {
-        router.refresh();
-      });
-    }, 5000);
+      void refreshPlantsRef.current();
+    }, 3000);
 
     return function cleanup() {
       window.clearInterval(intervalId);
     };
-  }, [router]);
+  }, []);
+
+  useEffect(function attachSerialEvents() {
+    if (!("serial" in navigator) || typeof navigator.serial.addEventListener !== "function") {
+      return;
+    }
+
+    function handleDisconnect() {
+      if (serialPortRef.current && !serialDisconnectPromiseRef.current) {
+        void disconnectSerial("device-disconnect");
+      }
+    }
+
+    navigator.serial.addEventListener("disconnect", handleDisconnect);
+
+    return function cleanup() {
+      navigator.serial.removeEventListener("disconnect", handleDisconnect);
+    };
+  }, []);
+
+  useEffect(function cleanupSerialOnUnmount() {
+    return function cleanup() {
+      if (serialPortRef.current || serialReadLoopPromiseRef.current) {
+        void disconnectSerial("unmount");
+      }
+    };
+  }, []);
 
   const selectedPlant = selectedPlantId
     ? plants.find(function (plant) {
         return plant.id === selectedPlantId;
       }) || null
     : null;
+  const activeUsbPlant = activeUsbPlantId
+    ? plants.find(function (plant) {
+        return plant.id === activeUsbPlantId;
+      }) || null
+    : null;
+  const hasSerialSupport =
+    typeof window !== "undefined" && typeof navigator !== "undefined" && "serial" in navigator;
+  const selectedPlantHasUsb = Boolean(
+    selectedPlant && selectedPlant.id === activeUsbPlantId && serialPortRef.current
+  );
+  const usbButtonLabel = selectedPlantHasUsb
+    ? serialBusy
+      ? "Disconnecting..."
+      : "Disconnect USB"
+    : serialBusy
+      ? "Connecting..."
+      : activeUsbPlant && selectedPlant && activeUsbPlant.id !== selectedPlant.id
+        ? "Move USB here"
+        : "Connect via USB";
 
   function closeCreateModal() {
     if (isCreating) {
@@ -346,6 +506,261 @@ export default function DashboardShell({ initialPlants }) {
         ? `/api/plants/${selectedPlantId}/readings`
         : "";
 
+  function applyUsbReading(plantId, rawValue) {
+    const reading = {
+      rawValue,
+      receivedAt: new Date().toISOString(),
+      source: USB_SOURCE
+    };
+
+    activeUsbReadingRef.current = reading;
+    setUsbStatus("USB streaming");
+    setPlants(function (currentPlants) {
+      return currentPlants.map(function (plant) {
+        if (plant.id !== plantId) {
+          return plant;
+        }
+
+        return {
+          ...plant,
+          latestReading: decorateReading(reading, plant.wetThreshold)
+        };
+      });
+    });
+    void postUsbReading(plantId, reading);
+  }
+
+  async function postUsbReading(plantId, reading) {
+    try {
+      const payload = await fetchJson(`/api/plants/${plantId}/readings`, {
+        body: JSON.stringify({
+          rawValue: reading.rawValue,
+          source: USB_SOURCE
+        }),
+        method: "POST"
+      });
+
+      if (payload?.plant) {
+        setPlants(function (currentPlants) {
+          return overlayUsb(
+            currentPlants.map(function (plant) {
+              return plant.id === payload.plant.id ? payload.plant : plant;
+            })
+          );
+        });
+      }
+    } catch (_error) {
+      setUsbStatus("USB streaming, sync failed");
+    }
+  }
+
+  function handleSerialLine(line, plantId) {
+    const rawValue = parseRawValue(line);
+
+    if (rawValue === null) {
+      return;
+    }
+
+    applyUsbReading(plantId, rawValue);
+  }
+
+  async function readSerialLoop(port, plantId) {
+    const decoder = new TextDecoder();
+
+    while (serialPortRef.current === port && port.readable) {
+      const reader = port.readable.getReader();
+      serialReaderRef.current = reader;
+
+      try {
+        while (true) {
+          const result = await reader.read();
+
+          if (result.done) {
+            break;
+          }
+
+          serialBufferRef.current += decoder.decode(result.value, {
+            stream: true
+          });
+
+          const lines = serialBufferRef.current.split(/\r?\n/);
+          serialBufferRef.current = lines.pop() || "";
+
+          for (const line of lines) {
+            handleSerialLine(line, plantId);
+          }
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setUsbStatus("USB error");
+        }
+      } finally {
+        if (serialReaderRef.current === reader) {
+          serialReaderRef.current = null;
+        }
+
+        try {
+          reader.releaseLock();
+        } catch (_error) {
+          // No-op when the reader is already released.
+        }
+      }
+    }
+
+    if (serialPortRef.current === port) {
+      serialPortRef.current = null;
+
+      try {
+        await port.close();
+      } catch (_error) {
+        // The port may already be closed by the browser.
+      }
+
+      activeUsbPlantIdRef.current = null;
+      activeUsbReadingRef.current = null;
+      serialBufferRef.current = "";
+      setActiveUsbPlantId(null);
+      setUsbStatus("USB disconnected");
+      void refreshPlantsRef.current();
+    }
+  }
+
+  async function disconnectSerial(reason = "user-request") {
+    if (serialDisconnectPromiseRef.current) {
+      return serialDisconnectPromiseRef.current;
+    }
+
+    const port = serialPortRef.current;
+    const reader = serialReaderRef.current;
+
+    if (!port && !serialReadLoopPromiseRef.current) {
+      activeUsbPlantIdRef.current = null;
+      activeUsbReadingRef.current = null;
+      serialBufferRef.current = "";
+      setActiveUsbPlantId(null);
+      setUsbStatus("");
+      return;
+    }
+
+    setSerialBusy(true);
+    setUsbStatus(reason === "switch-plant" ? "USB switching" : "USB disconnecting");
+    serialPortRef.current = null;
+
+    serialDisconnectPromiseRef.current = (async function () {
+      if (reader) {
+        try {
+          await reader.cancel();
+        } catch (_error) {
+          // The reader may already be gone.
+        }
+      }
+
+      if (serialReadLoopPromiseRef.current) {
+        try {
+          await serialReadLoopPromiseRef.current;
+        } catch (_error) {
+          // Ignore read loop shutdown errors during disconnect.
+        }
+      }
+
+      if (port) {
+        try {
+          await port.close();
+        } catch (_error) {
+          // The port may already be closed by the browser.
+        }
+      }
+
+      serialReaderRef.current = null;
+      serialReadLoopPromiseRef.current = null;
+      serialBufferRef.current = "";
+      activeUsbPlantIdRef.current = null;
+      activeUsbReadingRef.current = null;
+      setActiveUsbPlantId(null);
+      setUsbStatus("");
+      await refreshPlantsRef.current();
+    })().finally(function () {
+      serialDisconnectPromiseRef.current = null;
+      setSerialBusy(false);
+    });
+
+    return serialDisconnectPromiseRef.current;
+  }
+
+  async function connectUsbToPlant(plant) {
+    if (!hasSerialSupport) {
+      setUsbStatus("Web Serial unsupported");
+      return;
+    }
+
+    try {
+      setSerialBusy(true);
+
+      if (serialPortRef.current) {
+        await disconnectSerial("switch-plant");
+      }
+
+      setUsbStatus("USB selecting");
+      const port = await navigator.serial.requestPort();
+      setUsbStatus("USB opening");
+      await port.open({
+        baudRate: SERIAL_BAUD_RATE
+      });
+
+      serialBufferRef.current = "";
+      serialPortRef.current = port;
+      activeUsbPlantIdRef.current = plant.id;
+      activeUsbReadingRef.current = null;
+      setActiveUsbPlantId(plant.id);
+      setUsbStatus("USB connected");
+      serialReadLoopPromiseRef.current = readSerialLoop(port, plant.id).finally(function () {
+        serialReadLoopPromiseRef.current = null;
+      });
+    } catch (error) {
+      serialPortRef.current = null;
+      activeUsbPlantIdRef.current = null;
+      activeUsbReadingRef.current = null;
+      setActiveUsbPlantId(null);
+
+      if (error && error.name === "NotFoundError") {
+        setUsbStatus("USB selection cancelled");
+        return;
+      }
+
+      if (error && error.name === "NetworkError") {
+        setUsbStatus("USB busy, close serial monitor");
+        return;
+      }
+
+      if (error && error.name === "InvalidStateError") {
+        setUsbStatus("USB already open");
+        return;
+      }
+
+      if (error && error.name === "SecurityError") {
+        setUsbStatus("USB blocked by browser");
+        return;
+      }
+
+      setUsbStatus("USB failed");
+    } finally {
+      setSerialBusy(false);
+    }
+  }
+
+  async function handleUsbButtonClick() {
+    if (!selectedPlant || serialBusy) {
+      return;
+    }
+
+    if (selectedPlantHasUsb) {
+      await disconnectSerial("user-request");
+      return;
+    }
+
+    await connectUsbToPlant(selectedPlant);
+  }
+
   async function handleCreatePlant(event) {
     event.preventDefault();
     setIsCreating(true);
@@ -361,14 +776,12 @@ export default function DashboardShell({ initialPlants }) {
       });
 
       setPlants(function (currentPlants) {
-        return [payload.plant, ...currentPlants];
+        return [...currentPlants, payload.plant];
       });
       setIsCreateOpen(false);
       setCreateName("");
       setCreateId(createUuid());
-      startTransition(function () {
-        router.refresh();
-      });
+      void refreshPlantsRef.current();
     } catch (requestError) {
       setCreateError(requestError.message);
     } finally {
@@ -396,14 +809,14 @@ export default function DashboardShell({ initialPlants }) {
       });
 
       setPlants(function (currentPlants) {
-        return currentPlants.map(function (plant) {
-          return plant.id === payload.plant.id ? payload.plant : plant;
-        });
+        return overlayUsb(
+          currentPlants.map(function (plant) {
+            return plant.id === payload.plant.id ? payload.plant : plant;
+          })
+        );
       });
       setSelectedPlantId(null);
-      startTransition(function () {
-        router.refresh();
-      });
+      void refreshPlantsRef.current();
     } catch (requestError) {
       setDetailError(requestError.message);
     } finally {
@@ -424,6 +837,10 @@ export default function DashboardShell({ initialPlants }) {
     setDetailError("");
 
     try {
+      if (selectedPlantId === activeUsbPlantIdRef.current) {
+        await disconnectSerial("delete-plant");
+      }
+
       await fetchJson(`/api/plants/${selectedPlantId}`, {
         method: "DELETE"
       });
@@ -434,15 +851,23 @@ export default function DashboardShell({ initialPlants }) {
         });
       });
       setSelectedPlantId(null);
-      startTransition(function () {
-        router.refresh();
-      });
+      void refreshPlantsRef.current();
     } catch (requestError) {
       setDetailError(requestError.message);
     } finally {
       setIsDeleting(false);
     }
   }
+
+  function usbHelpText() {
+    if (!activeUsbPlant || !selectedPlant || activeUsbPlant.id === selectedPlant.id) {
+      return "";
+    }
+
+    return `USB is currently attached to ${activeUsbPlant.name}. Connecting here will switch the stream.`;
+  }
+
+  const activeSource = selectedPlantHasUsb ? USB_SOURCE : selectedPlant?.latestReading?.source || "api";
 
   return (
     <>
@@ -564,6 +989,41 @@ export default function DashboardShell({ initialPlants }) {
             <div className="field">
               <span>POST endpoint</span>
               <code className="code-block">{endpointPreview}</code>
+            </div>
+
+            <div className="transport-panel">
+              <div className="transport-copy">
+                <span className="transport-label">Source</span>
+                <div className="source-options">
+                  {[USB_SOURCE, "api"].map(function (source) {
+                    const isActive = sourceTone(activeSource) === sourceTone(source);
+
+                    return (
+                      <div
+                        className={`source-option${isActive ? " source-option-active" : ""}`}
+                        key={source}
+                      >
+                        <div>
+                          <strong>{sourceLabel(source)}</strong>
+                          <span>{sourceDescription(source)}</span>
+                        </div>
+                        {isActive ? <em>Active</em> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                {usbHelpText() ? <p className="usb-status">{usbHelpText()}</p> : null}
+                {usbStatus ? <p className="usb-status">{usbStatus}</p> : null}
+              </div>
+
+              <button
+                className="ghost-button usb-button"
+                disabled={serialBusy || !hasSerialSupport}
+                onClick={handleUsbButtonClick}
+                type="button"
+              >
+                {usbButtonLabel}
+              </button>
             </div>
 
             <div className="field">
