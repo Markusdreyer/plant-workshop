@@ -40,6 +40,12 @@ Wire diagram:
 
 ![](./assets/My%20First%20Board%20-%20Frame%202.jpg)
 
+### Approaches
+
+There's two appraoches, solder-free and soldering
+
+
+
 ## Plant platform
 
 The workshop now runs through [`plant-platform/`](./plant-platform) only. It is a Next.js app intended for Vercel, backed by Neon Postgres, with one dashboard for every registered plant.
