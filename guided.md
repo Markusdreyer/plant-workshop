@@ -1,3 +1,5 @@
+TODO: Polish
+
 ## Workshop setup
 
 Download Arduino IDE 2 from Arduino’s official site:
