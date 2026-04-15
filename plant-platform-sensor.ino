@@ -17,11 +17,6 @@ bool networkConfigured() {
          plantId[0] != '\0';
 }
 
-bool urlLooksLocal() {
-  const String baseUrl = String(serverBaseUrl);
-  return baseUrl.indexOf("localhost") >= 0 || baseUrl.indexOf("127.0.0.1") >= 0;
-}
-
 String readingUrl() {
   String baseUrl = String(serverBaseUrl);
 
@@ -42,11 +37,6 @@ void startWifiIfConfigured() {
     return;
   }
 
-  if (urlLooksLocal()) {
-    logNetworkMessage("serverBaseUrl cannot use localhost or 127.0.0.1");
-    return;
-  }
-
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifiSsid, wifiPassword);
 
@@ -55,7 +45,7 @@ void startWifiIfConfigured() {
 }
 
 void postReadingIfConnected(int rawValue) {
-  if (!networkConfigured() || WiFi.status() != WL_CONNECTED || urlLooksLocal()) {
+  if (!networkConfigured() || WiFi.status() != WL_CONNECTED) {
     return;
   }
 
@@ -94,7 +84,6 @@ void setup() {
 void loop() {
   const int rawValue = analogRead(analogPin);
 
-  // Keep raw serial output on in all modes so the browser USB path still works.
   Serial.println(rawValue);
 
   postReadingIfConnected(rawValue);

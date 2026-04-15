@@ -10,10 +10,10 @@ build-lists: true
 # What we're doing
 
 - Build a simple soil moisture sensor setup
-- Solder and connect the hardware
+- ~Solder and connect the hardware~
 - Upload code to an ESP32
 - Watch raw readings come in on a shared UI
-- Learn just enough electronics and embedded workflow to be dangerous
+- Learn just enough electronics and embedded workflow to be dangerous 😈
 
 ---
 
@@ -22,7 +22,6 @@ build-lists: true
 - Super basic electronics
 - The embedded software dev cycle
 - Arduino and ESP32 basics
-- Soldering basics and safety
 - The UI and how readings get there
 
 ---
