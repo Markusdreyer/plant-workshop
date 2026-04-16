@@ -1,28 +1,32 @@
-TODO: Polish
+# Guided workshop path
 
-## Workshop setup
+This is the step-by-step version of the workshop. If you want more trial and error, head over to [unguided.md](./unguided.md).
 
-Download Arduino IDE 2 from Arduino’s official site:
+The goal is to get an ESP32 to read a soil moisture sensor and send those readings to https://plant-workshop.vercel.app/ 🌱
+
+## 1. Workshop setup ⚙️
+
+Download Arduino IDE 2 from Arduino's official site:
 
 https://www.arduino.cc/en/software/
 
-Then install the ESP32 board package in Arduino IDE using Boards Manager: 
+Then install the ESP32 board package in Arduino IDE using Boards Manager:
 
 ![](./assets/boards-manager-install-esp32.png)
 
-Once we've got the ESP32 library installed, we need to select it as the active board type:
+Once the ESP32 package is installed, select it as the active board type:
 
 ![](./assets/select-esp32-dev-board.png)
 
-Then, after connecting the ESP32 with USB-C to your laptop, ensure that you've selected the board in the dropdown:
+Then connect the ESP32 with USB-C and make sure the correct device is selected in the dropdown:
 
 ![](./assets/select-the-right-usb-device.png)
 
-## First upload
+## 2. First upload 💡
 
-Before starting with the wiring. Do a quick test to see that you're able to connect to the board and upload a simple program.
+Before you start wiring, do a quick test to make sure you can connect to the board and upload a simple program.
 
-1. Copy the following code and paste it into the Arduino editor: 
+1. Copy the following code into the Arduino editor:
 
 ```cpp
 const int LED_PIN = 2; 
@@ -42,20 +46,19 @@ void loop() {
 2. Click the upload button in the top left corner.
 3. Confirm the ESP32 blinks blue.
 
-## The wiring 
+## 3. The wiring 🔌
 
-Below is a diagram detailing how you shoud connect the different wires. Trial and error is the name of the game. You might have to go back to this diagram if the next steps does not yield teh expected results. 
+Use the diagram below to connect the wires. If the next steps do not work as expected, come back here and check the wiring again.
 
 ![](./assets/diagram.jpg)
 
-When all wires are connected properly, the GREEN power light on the moisture sensor board should be lit. If there's no light on the board, then it means that the board doesn't get power or isnt grounded.
+When the wiring is correct, the green power light on the moisture sensor board should be on. If there is no light, the board is not getting power or ground.
 
-When you've connected the wires to the correct spots, it's time to upload the code that reads and prints out the sensor data.
+Once the wiring is in place, upload the sketch below to read and print the sensor data.
 
+## 4. Reading sensor data 📟
 
-## Reading sensor data
-
-To read the sensor data, upload the code below to the board:
+Upload the code below to read the sensor data:
 
 ```ino
 const int analogPin = 36;
@@ -77,22 +80,21 @@ void loop() {
 }
 ```
 
-After you've uploaded the code to the board, you'll want to see the readings from the sensor. However, in the output console, you won't see anything. To read the output that is printed to the serial, you'll have to open the **Serial Monitor**, which is located in the top right corner:
+After the upload, open the **Serial Monitor** in the top right corner to see the readings from the sensor:
 
 ![](./assets/serial-monitor.png)
 
-Depending on the pre-selected baud-range, you will most likely see giberish like `�����������` in the monitor. To make sense of the values, select the baud that matches that you the `baudRate` from your code:
+If you see gibberish like `�����������`, the selected baud does not match the `baudRate` in the code. Change it to match:
 
 ![](./assets/baud-selection.png)
 
-You should then start to see proper readings printed: 4095 means completely dry (no resistance), and 0 would be soaking wet (most likely closer to 1000).
+You should now see proper readings. `4095` means completely dry, and `0` would be soaking wet, though in practice wet soil will usually be somewhere above that.
 
+## 5. Connecting to the hive-mind 🌐
 
-## Connecting to the hive-mind
+The final step is to connect the device to https://plant-workshop.vercel.app/ so it can publish readings to the shared dashboard. Create a new digital plant there and copy its UUID. You'll use that UUID to send data through the API.
 
-Last and final steps is to integrate the device with https://plant-workshop.vercel.app/ to publish the readings for the world to enjoy and admire. Head over to the page to create a new digital plant that you can send the readings to. Take note of the UUID for the plant. We'll use this to send data through the plant-API.
-
-Paste the following code into the editor, but make sure to update the constants with the correct details:
+Paste the following code into the editor, then update the constants with the correct details:
 
 ```ino
 #include <HTTPClient.h>
@@ -189,4 +191,4 @@ void loop() {
 }
 ```
 
-When the code has been uploaded, you should see readings update real-time on your digital plant! 🎉
+Once the code is uploaded, you should see readings update in real time on your digital plant. 🎉
