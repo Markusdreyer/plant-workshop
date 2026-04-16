@@ -3,125 +3,93 @@ autoscale: true
 build-lists: true
 
 # Plant Moisture Sensor Workshop
-## From hardware to a shared live dashboard
+## A short intro before we start building
 
 ---
 
-# What we're doing
+# What we're doing today
 
-- Build a simple soil moisture sensor setup
-- ~Solder and connect the hardware~
+- Build a simple moisture sensor setup
 - Upload code to an ESP32
-- Watch raw readings come in on a shared UI
-- Learn just enough electronics and embedded workflow to be dangerous 😈
+- Read values from the sensor
+- See those values show up in software and make it into something useful
 
 ---
 
-# What we'll cover
+# The main parts
 
-- Super basic electronics
-- The embedded software dev cycle
-- Arduino and ESP32 basics
-- The UI and how readings get there
+- A probe that goes into the soil
+- A sensor board connected to the probe
+- An ESP32 that runs the code
+- A few wires to connect everything together
 
----
-
-# Electronics: the short version
-
-- The board powers the circuit
-- The sensor gives us a changing analog signal
-- The ESP32 reads that signal as a raw number
-- Dry and wet are ranges of high/low voltage
 
 ---
 
-# A few terms
+# Four useful terms
 
-- `3.3V`: power for the sensor and board logic
-- `GND`: the common return path, shared understanding of what zero is
-- `Analog input`: where the board reads a changing voltage level (how wet)
-- `Digital input`: Not used in this workshop, but is basically a binary reading (wet/dry)
-- `Raw reading`: the number we get before turning it into a moisture percentage
+- `3.3V`: power for the sensor board
+- `GND`: the shared reference point between the sensor board and the ESP32
+- `Analog`: a changing signal, not just on or off, in contrast to a digital signal
+- `Serial Monitor`: the place where we can inspect what the board is doing
 
----
-
-# Embedded dev cycle
-
-1. Change the sketch
-2. Upload it to the board
-3. Open Serial Monitor
-4. Look at the output
-5. Adjust code or wiring
-6. Repeat
+Without a shared `GND`, the ESP32 can't reliably interpret the sensor's output.
 
 ---
 
-# Arduino mental model
+# What kind of value we get
+
+- The board does not know "healthy plant" or "too dry"
+- It only reads a raw number
+- That number changes as the soil gets wetter or drier
+- Caps out at 4095 (dry) and the lower it is the wetter the soil
+
+---
+
+# Arduino in one ~~minute~~ second
 
 - `setup()` runs once when the board starts
-- `loop()` runs again and again forever
-- `analogRead()` reads the sensor
-- `Serial.println()` lets us see what the board is doing
-- The serial monitor is your first debugging tool
+- `loop()` runs over and over
+    - `analogRead()` reads the sensor
+    - `Serial.println()` lets us see the result
+
 
 ---
 
-# Soldering basics
-- Heat the pad and the component leg together
-- Feed solder into the joint, not onto the iron tip
-    - But can be helpful at times
-- Less is more
+# How to work through the workshop
 
---- 
-# Soldering basics
+1. Get the board connected
+2. Upload something simple first
+3. Add the wiring
+4. Check the sensor values
+5. Only then move on to the dashboard part
 
-![inline](/Users/markusdreyer/Downloads/Lemljenje_01_2.webp)
 
 ---
 
-# Safety
+# When things go wrong
 
-- The iron is hot even when it looks harmless
-- Put it back in the stand when not in use
-- Try not to breathe in fumes
-- Safety glasses are available
-- If something feels wrong, stop and ask for help
+- No signs of life: check power and ground
+- Strange text in Serial Monitor: check the baud rate
+- Values never change: check the wiring and probe connection
+- Upload fails: check the selected board, port, and cable
 
----
-
-# What the UI does
-
-- Shows the latest moisture reading for each plant
-- Lets us see the readings without everyone building their own local setup first
-- Keeps the workshop moving faster for less technical participants
-- Still gives the raw numbers to the software so calibration stays flexible
 
 ---
 
-# Two ways readings can reach the UI
+---
 
-- `USB`: easiest path during the workshop
-- `API`: advanced path for boards posting directly over the network
+# Two ways through the workshop
 
-Both paths end up on the same shared page.
+- `guided.md` if you want the direct path
+- `unguided.md` if you want to figure out a bit more yourself
+
+Both end at the same result.
 
 ---
 
-# Why we do it this way
+# ✨ Let's get started ✨
 
-- Not everyone needs to install the full local dev toolchain
-- Most people can focus on hardware, upload, and serial feedback
-- The shared page gives immediate payoff
-- Anyone who wants extra challenge can still run the UI themselves
+![inline](assets/qr.png)
 
-Everyone will get access to the repo.
-
----
-
-# Let's build
-
-- Start simple
-- Get one thing working at a time
-- Not everyone can solder at once
-- Check out the README.md for guidance
-
+#### https://github.com/Markusdreyer/plant-workshop
