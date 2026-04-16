@@ -1,29 +1,29 @@
 # Unguided workshop path
 
-This is the same workshop as the guided version, but with less hand-holding.
+Welcome to challenge mode. This is the same workshop as the guided version, but with less hand-holding.
 
-The goal is still to get an ESP32 to read a soil moisture sensor and send those readings to https://plant-workshop.vercel.app/.
+The goal is still to get an ESP32 to read a soil moisture sensor and send those readings to https://plant-workshop.vercel.app/ 🌱
 
-Try to solve each section from the prompt and the hints first. If you get stuck, open the answer section for the exact steps. If you want everything spelled out from the start, use [guided.md](./guided.md).
+Treat each section like a mini challenge. Try to solve it from the prompt and the hints first. If you get stuck, open the answer section for the exact steps. If you want everything spelled out from the start, use [guided.md](./guided.md).
 
-## Workshop setup
+## 1. Workshop setup ⚙️
 
 Your first goal is to get Arduino IDE talking to the ESP32.
 
-Success looks like this:
+Success looks like this ✅
 
 - Arduino IDE 2 is installed.
 - The ESP32 board package is installed.
 - You can select both an ESP32 board and the connected USB device.
 
-Hints:
+Hints 🧭
 
 - Download Arduino IDE 2 from Arduino's official site.
 - Use Boards Manager to install the `esp32` package from Espressif Systems.
 - After connecting the board with USB-C, make sure you have selected both a board type and the correct port/device.
 
 <details>
-<summary>Show the exact setup steps</summary>
+<summary>Show the exact setup steps 👀</summary>
 
 Download Arduino IDE 2 from Arduino's official site:
 
@@ -42,23 +42,23 @@ Then, after connecting the ESP32 with USB-C to your laptop, make sure you've sel
 ![](./assets/select-the-right-usb-device.png)
 </details>
 
-## First upload
+## 2. First upload 💡
 
 Before you start wiring anything, make sure that you can upload a simple program to the board.
 
-Success looks like this:
+Success looks like this ✅
 
 - The sketch uploads without errors.
 - The board's blue LED blinks on and off about once per second.
 
-Hints:
+Hints 🧭
 
 - Start with the smallest sketch possible.
 - You'll need `setup()` to configure the LED pin and `loop()` to blink it.
 - If the upload fails, double check the selected board, USB device, and cable.
 
 <details>
-<summary>Show the blink test</summary>
+<summary>Show the blink test 👀</summary>
 
 Paste this into the Arduino editor:
 
@@ -80,30 +80,30 @@ void loop() {
 Then click the upload button in the top left corner and confirm that the ESP32 blinks blue.
 </details>
 
-## The wiring
+## 3. The wiring 🔌
 
 Now connect the probe, sensor board, and ESP32 so the board can read the moisture signal.
 
-Success looks like this:
+Success looks like this ✅
 
 - The probe is connected to the sensor board.
 - The sensor board gets power.
 - The signal wire goes to an analog-capable input on the ESP32.
 - The green power light on the sensor board is lit.
 
-Hints:
+Hints 🧭
 
 - The sensor board exposes power, ground, a switching/digital output, and an analog output.
 - For this workshop, you want the analog signal, not the switching/digital one.
 - Look at the sample sketches to see which ESP32 input the workshop code expects: [direct-serial-implementation.ino](./direct-serial-implementation.ino) and [plant-platform-sensor.ino](./plant-platform-sensor.ino)
 - If the green light on the moisture sensor board is off, fix power and ground first.
 
-The ESP32 board pinout below is not a spoiler, but you will need it:
+The ESP32 board pinout below is not a spoiler, but you will need it to crack the wiring puzzle:
 
 <img src="./assets/data-sheet.png" alt="ESP32 board pinout" width="70%" />
 
 <details>
-<summary>Show the wiring answer</summary>
+<summary>Show the wiring answer 👀</summary>
 
 Below is the full wiring diagram:
 
@@ -122,24 +122,24 @@ If the sensor board does not light up green, it is almost always a power or grou
 If the light is on but your readings never change, re-check the analog wire and make sure the probe is actually connected to the sensor board.
 </details>
 
-## Reading sensor data
+## 4. Reading sensor data 📟
 
 Once the wiring is in place, the next step is to read raw values from the sensor and print them to the Serial Monitor.
 
-Success looks like this:
+Success looks like this ✅
 
 - You can upload a sketch that calls `analogRead(...)`.
 - The Serial Monitor shows numbers continuously.
 - The values change when the probe is dry versus wet.
 
-Hints:
+Hints 🧭
 
 - There is already a serial-only sample sketch in [direct-serial-implementation.ino](./direct-serial-implementation.ino).
 - You'll need `Serial.begin(...)`, `analogRead(...)`, and `Serial.println(...)`.
 - The Serial Monitor baud setting must match the baud configured in the sketch.
 
 <details>
-<summary>Show the serial-reading answer</summary>
+<summary>Show the serial-reading answer 👀</summary>
 
 You can copy the code from [direct-serial-implementation.ino](./direct-serial-implementation.ino), or paste this directly:
 
@@ -174,25 +174,25 @@ If you see gibberish like `�����������`, the selected baud
 You should then start to see proper readings printed. `4095` means completely dry, and `0` would be soaking wet, though in practice wet soil will usually land somewhere above that.
 </details>
 
-## Connecting to the hive-mind
+## 5. Connecting to the hive-mind 🌐
 
 Final step: send the readings from your board to the shared plant dashboard.
 
-Success looks like this:
+Success looks like this ✅
 
 - You have created a plant on https://plant-workshop.vercel.app/.
 - You have copied the plant UUID.
 - The ESP32 is connected to WiFi.
 - The dashboard updates when your board posts a new reading.
 
-Hints:
+Hints 🧭
 
 - There is already a network-enabled sample sketch in [plant-platform-sensor.ino](./plant-platform-sensor.ino).
 - You'll need to fill in WiFi credentials, the plant UUID, and the workshop server URL.
 - If those values are left blank, the sketch stays in serial-only mode.
 
 <details>
-<summary>Show the plant-platform answer</summary>
+<summary>Show the plant-platform answer 👀</summary>
 
 Go to https://plant-workshop.vercel.app/ and create a new digital plant. Copy the UUID for that plant.
 
@@ -224,7 +224,7 @@ If the dashboard does not update:
 If you want the full code inline, it is the same sketch as [plant-platform-sensor.ino](./plant-platform-sensor.ino).
 </details>
 
-## Done means
+## 6. Done means 🎯
 
 You are finished when:
 
