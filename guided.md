@@ -2,7 +2,7 @@
 
 This is the step-by-step version of the workshop. If you want more trial and error, head over to [unguided.md](./unguided.md).
 
-The goal is to get an ESP32 to read a soil moisture sensor and send those readings to https://plant-workshop.vercel.app/ 🌱
+The goal is to get an ESP32 to read a soil moisture sensor and send those readings to https://codepub-nl.site/ 🌱
 
 ## 1. Workshop setup ⚙️
 
@@ -92,7 +92,7 @@ You should now see proper readings. `4095` means completely dry, and `0` would b
 
 ## 5. Connecting to the hive-mind 🌐
 
-The final step is to connect the device to https://plant-workshop.vercel.app/ so it can publish readings to the shared dashboard. Create a new digital plant there and copy its UUID. You'll use that UUID to send data through the API.
+The final step is to connect the device to https://codepub-nl.site/ so it can publish readings to the shared dashboard. Create a new digital plant there and copy its UUID. You'll use that UUID to send data through the API.
 
 Paste the following code into the editor, then update the constants with the correct details:
 
@@ -107,7 +107,7 @@ const uint16_t httpTimeoutMs = 1000;
 const char* wifiSsid = ""; // TODO
 const char* wifiPassword = ""; // TODO
 const char* plantId = ""; // TODO: Use the UUID from the Plant Platform dashboard
-const char* serverBaseUrl = "https://plant-workshop.vercel.app";
+const char* serverBaseUrl = "https://codepub-nl.site";
 
 bool networkConfigured() {
   return wifiSsid[0] != '\0' &&
